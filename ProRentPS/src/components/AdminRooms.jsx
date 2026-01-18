@@ -4,190 +4,212 @@ import axios from 'axios';
 function AdminRooms() {
     const [rooms, setRooms] = useState([]);
     
-    // State untuk form input
-    const [values, setValues] = useState({
-        name: '',
-        price_per_hour: '',
-        capacity: ''
-    });
+    // State Form
+    const [name, setName] = useState('');
+    const [price, setPrice] = useState('');
+    const [capacity, setCapacity] = useState('');
     
-    // State untuk mode Edit
-    const [isEditing, setIsEditing] = useState(false);
-    const [editId, setEditId] = useState(null);
+    // State Edit Mode
+    const [editId, setEditId] = useState(null); // Jika null = Mode Tambah, Jika ada ID = Mode Edit
 
-    // Ambil data saat halaman dibuka
     useEffect(() => {
         loadRooms();
     }, []);
 
     const loadRooms = () => {
         axios.get('http://localhost:3000/ps')
-            .then(res => {
-                setRooms(res.data);
-            })
-            .catch(err => console.error("Gagal ambil data:", err));
+            .then(res => setRooms(res.data))
+            .catch(err => alert("Gagal memuat data"));
     };
 
-    const handleInput = (e) => {
-        setValues({...values, [e.target.name]: e.target.value});
-    };
-
+    // --- FUNGSI SUBMIT (BISA TAMBAH / UPDATE) ---
     const handleSubmit = (e) => {
         e.preventDefault();
         
-        // Validasi
-        if(!values.name || !values.price_per_hour || !values.capacity) {
-            alert("Semua kolom harus diisi!");
-            return;
-        }
+        const data = { name, price, capacity };
 
-        const dataToSend = {
-            name: values.name,
-            price_per_hour: parseInt(values.price_per_hour), // Ubah jadi angka
-            capacity: parseInt(values.capacity)              // <--- PENTING: Ubah jadi angka
-        };
-        
-        if (isEditing) {
-            // --- MODE UPDATE ---
-            axios.put('http://localhost:3000/ps/' + editId, dataToSend)
+        if (editId) {
+            // --- LOGIKA UPDATE ---
+            axios.put('http://localhost:3000/ps/update/' + editId, data)
                 .then(res => {
                     if(res.data.Status === "Success") {
-                        alert("Room berhasil diupdate!");
+                        alert("✅ Data Berhasil Diupdate!");
                         resetForm();
                         loadRooms();
                     } else {
-                        alert("Gagal update room.");
+                        alert("Gagal Update: " + res.data.Error);
                     }
                 })
-                .catch(err => console.log(err));
+                .catch(err => console.error(err));
         } else {
-            // --- MODE TAMBAH ---
-            axios.post('http://localhost:3000/ps', dataToSend)
+            // --- LOGIKA TAMBAH BARU ---
+            axios.post('http://localhost:3000/ps/add', data)
                 .then(res => {
                     if(res.data.Status === "Success") {
-                        alert("Room berhasil ditambahkan!");
+                        alert("✅ Berhasil Menambah Room Baru!");
                         resetForm();
                         loadRooms();
                     } else {
-                        alert("Gagal menambah room.");
+                        alert("Gagal Tambah: " + res.data.Error);
                     }
                 })
-                .catch(err => console.log(err));
+                .catch(err => console.error(err));
         }
     };
 
+    // --- FUNGSI KLIK TOMBOL EDIT (ISI FORM DENGAN DATA LAMA) ---
     const handleEditClick = (room) => {
-        setIsEditing(true);
-        setEditId(room.id);
-        setValues({
-            name: room.name,
-            price_per_hour: room.price_per_hour,
-            capacity: room.capacity
-        });
+        setEditId(room.id); // Masuk mode edit
+        setName(room.name);
+        setPrice(room.price_per_hour);
+        setCapacity(room.capacity);
+        
+        // Scroll ke atas agar admin melihat formnya
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    // --- FUNGSI RESET FORM / BATAL EDIT ---
+    const resetForm = () => {
+        setEditId(null); // Kembali ke mode tambah
+        setName('');
+        setPrice('');
+        setCapacity('');
     };
 
     const handleDelete = (id) => {
-        if(window.confirm("Hapus Room ini? Data tidak bisa kembali.")) {
-            axios.delete('http://localhost:3000/ps/' + id)
+        if(window.confirm("Yakin ingin menghapus Room ini?")) {
+            axios.delete('http://localhost:3000/ps/delete/' + id)
                 .then(res => {
-                    if(res.data.Status === "Success") {
-                        loadRooms();
-                    } else {
-                        alert("Gagal menghapus");
-                    }
-                })
-                .catch(err => console.log(err));
+                    loadRooms();
+                });
         }
     };
 
-    const resetForm = () => {
-        setValues({ name: '', price_per_hour: '', capacity: '' });
-        setIsEditing(false);
-        setEditId(null);
-    };
-
-    const formatRupiah = (number) => {
-        if (!number || isNaN(number)) return "Rp 0";
-        return new Intl.NumberFormat("id-ID", {
-            style: "currency",
-            currency: "IDR",
-            minimumFractionDigits: 0
-        }).format(number);
-    };
+    const formatRupiah = (num) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(num);
 
     return (
-        <div style={{color: 'black'}}> 
-            <h2 style={{marginBottom:'20px', color:'black'}}>Data Room</h2>
+        <div style={{ padding: '30px', fontFamily: 'Arial' }}>
+            <h2 style={{ marginBottom: '20px', color: '#333' }}>Data Room</h2>
 
-            {/* FORM INPUT */}
-            <div style={{background:'#2c2c2c', padding:'20px', borderRadius:'8px', marginBottom:'30px', color: 'white'}}>
-                <h4 style={{marginBottom:'15px', color:'white'}}>
-                    {isEditing ? "Edit Room" : "Tambah Room Baru"}
-                </h4>
+            {/* --- FORM PINTAR (TAMBAH / EDIT) --- */}
+            <div style={{ background: '#222', color: 'white', padding: '25px', borderRadius: '8px', marginBottom: '30px' }}>
+                <h3 style={{ borderBottom: '1px solid #444', paddingBottom: '10px', marginBottom: '20px', fontSize: '18px' }}>
+                    {editId ? `Edit Room (ID: ${editId})` : "Tambah Room Baru"}
+                </h3>
+                
                 <form onSubmit={handleSubmit}>
-                    <div style={{marginBottom:'15px'}}>
-                        <label style={{display:'block', marginBottom:'5px', fontSize:'14px'}}>Nama Room</label>
-                        <input type="text" name="name" placeholder="Contoh: Room VVIP" 
-                               value={values.name} onChange={handleInput} required 
-                               style={{width:'100%', padding:'10px', marginBottom:'10px', borderRadius:'4px', border:'none'}} />
-                        
-                        <label style={{display:'block', marginBottom:'5px', fontSize:'14px'}}>Harga per Jam (Angka saja)</label>
-                        <input type="number" name="price_per_hour" placeholder="Contoh: 50000" 
-                               value={values.price_per_hour} onChange={handleInput} required 
-                               style={{width:'100%', padding:'10px', marginBottom:'10px', borderRadius:'4px', border:'none'}} />
-                        
-                        <label style={{display:'block', marginBottom:'5px', fontSize:'14px'}}>Kapasitas (Orang)</label>
-                        <input type="number" name="capacity" placeholder="Contoh: 4" 
-                               value={values.capacity} onChange={handleInput} required
-                               style={{width:'100%', padding:'10px', marginBottom:'10px', borderRadius:'4px', border:'none'}} />
+                    <div style={{ marginBottom: '15px' }}>
+                        <label style={{ display:'block', marginBottom:'8px', fontSize:'14px' }}>Nama Room</label>
+                        <input 
+                            type="text" 
+                            placeholder="Contoh: Room VVIP" 
+                            value={name}
+                            onChange={e => setName(e.target.value)}
+                            style={{ width: '100%', padding: '10px', borderRadius:'4px', border:'none' }} 
+                            required
+                        />
                     </div>
                     
-                    <button type="submit" style={{background: isEditing ? '#007bff' : '#cc0000', color:'white', border:'none', padding:'10px 20px', cursor:'pointer', fontWeight:'bold', borderRadius:'4px', marginRight:'10px'}}>
-                        {isEditing ? "Simpan Perubahan" : "Tambah Room"}
-                    </button>
-                    
-                    {isEditing && (
-                        <button type="button" onClick={resetForm} style={{background:'#6c757d', color:'white', border:'none', padding:'10px 20px', cursor:'pointer', fontWeight:'bold', borderRadius:'4px'}}>
-                            Batal
+                    <div style={{ marginBottom: '15px' }}>
+                        <label style={{ display:'block', marginBottom:'8px', fontSize:'14px' }}>Harga per Jam (Angka saja)</label>
+                        <input 
+                            type="number" 
+                            placeholder="Contoh: 50000" 
+                            value={price}
+                            onChange={e => setPrice(e.target.value)}
+                            style={{ width: '100%', padding: '10px', borderRadius:'4px', border:'none' }} 
+                            required
+                        />
+                    </div>
+
+                    <div style={{ marginBottom: '25px' }}>
+                        <label style={{ display:'block', marginBottom:'8px', fontSize:'14px' }}>Kapasitas (Orang)</label>
+                        <input 
+                            type="number" 
+                            placeholder="Contoh: 4" 
+                            value={capacity}
+                            onChange={e => setCapacity(e.target.value)}
+                            style={{ width: '100%', padding: '10px', borderRadius:'4px', border:'none' }} 
+                            required
+                        />
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                        <button 
+                            type="submit" 
+                            style={{ 
+                                background: editId ? '#007bff' : '#cc0000', // Biru jika Edit, Merah jika Tambah
+                                color: 'white', 
+                                padding: '12px 25px', 
+                                border: 'none', 
+                                borderRadius: '5px', 
+                                cursor: 'pointer', 
+                                fontWeight:'bold',
+                                flex: 1
+                            }}>
+                            {editId ? "Simpan Perubahan" : "Tambah Room"}
                         </button>
-                    )}
+                        
+                        {/* Tombol Batal hanya muncul saat Edit */}
+                        {editId && (
+                            <button 
+                                type="button"
+                                onClick={resetForm}
+                                style={{ 
+                                    background: '#666', 
+                                    color: 'white', 
+                                    padding: '12px 25px', 
+                                    border: 'none', 
+                                    borderRadius: '5px', 
+                                    cursor: 'pointer', 
+                                    fontWeight:'bold'
+                                }}>
+                                Batal
+                            </button>
+                        )}
+                    </div>
                 </form>
             </div>
 
-            {/* TABEL LIST ROOM */}
-            <div style={{overflowX:'auto'}}>
-                <table style={{width:'100%', borderCollapse:'collapse', background:'white', boxShadow:'0 2px 5px rgba(0,0,0,0.1)'}}>
+            {/* --- TABEL DATA --- */}
+            <div style={{ overflowX: 'auto', background: 'white', borderRadius: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
-                        <tr style={{background:'#cc0000', color:'white'}}>
-                            <th style={{padding:'12px', textAlign:'left'}}>ID</th>
-                            <th style={{padding:'12px', textAlign:'left'}}>Nama Room</th>
-                            <th style={{padding:'12px', textAlign:'left'}}>Harga / Jam</th>
-                            <th style={{padding:'12px', textAlign:'left'}}>Kapasitas</th>
-                            <th style={{padding:'12px', textAlign:'left'}}>Aksi</th>
+                        <tr style={{ background: '#cc0000', color: 'white', textAlign: 'left' }}>
+                            <th style={{ padding: '15px' }}>ID</th>
+                            <th style={{ padding: '15px' }}>Nama Room</th>
+                            <th style={{ padding: '15px' }}>Harga / Jam</th>
+                            <th style={{ padding: '15px' }}>Kapasitas</th>
+                            <th style={{ padding: '15px' }}>Aksi</th>
                         </tr>
                     </thead>
                     <tbody>
                         {rooms.map((room, index) => (
-                            <tr key={index} style={{borderBottom:'1px solid #ddd'}}>
-                                <td style={{padding:'12px'}}>{room.id}</td>
-                                <td style={{padding:'12px', fontWeight:'bold'}}>{room.name}</td>
-                                <td style={{padding:'12px', color:'green', fontWeight:'bold'}}>
+                            <tr key={index} style={{ borderBottom: '1px solid #eee', background: editId === room.id ? '#f0f8ff' : 'white' }}>
+                                <td style={{ padding: '15px', fontWeight:'bold' }}>{room.id}</td>
+                                <td style={{ padding: '15px', fontWeight: 'bold' }}>{room.name}</td>
+                                <td style={{ padding: '15px', color: '#28a745', fontWeight:'bold' }}>
                                     {formatRupiah(room.price_per_hour)}
                                 </td>
-                                <td style={{padding:'12px'}}>{room.capacity} Orang</td>
-                                <td style={{padding:'12px'}}>
-                                    <button onClick={() => handleEditClick(room)} style={{background:'#007bff', color:'white', border:'none', padding:'6px 12px', cursor:'pointer', borderRadius:'4px', marginRight:'5px'}}>Edit</button>
-                                    <button onClick={() => handleDelete(room.id)} style={{background:'#dc3545', color:'white', border:'none', padding:'6px 12px', cursor:'pointer', borderRadius:'4px'}}>Hapus</button>
+                                <td style={{ padding: '15px' }}>{room.capacity} Orang</td>
+                                <td style={{ padding: '15px' }}>
+                                    
+                                    {/* TOMBOL EDIT */}
+                                    <button 
+                                        onClick={() => handleEditClick(room)}
+                                        style={{ background: '#007bff', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '4px', cursor: 'pointer', marginRight: '8px', fontWeight:'bold' }}>
+                                        Edit
+                                    </button>
+
+                                    <button 
+                                        onClick={() => handleDelete(room.id)}
+                                        style={{ background: '#dc3545', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '4px', cursor: 'pointer', fontWeight:'bold' }}
+                                    >
+                                        Hapus
+                                    </button>
                                 </td>
                             </tr>
                         ))}
-                        {rooms.length === 0 && (
-                            <tr>
-                                <td colSpan="5" style={{padding:'20px', textAlign:'center', fontStyle:'italic', color:'#666'}}>
-                                    Belum ada data room. Silakan tambah data.
-                                </td>
-                            </tr>
-                        )}
                     </tbody>
                 </table>
             </div>

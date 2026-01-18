@@ -9,77 +9,66 @@ function AdminCustomers() {
     }, []);
 
     const loadCustomers = () => {
-        axios.get('http://localhost:3000/customers')
+        axios.get('http://localhost:3000/auth/users')
             .then(res => {
-                if(res.data.Error) {
-                    alert(res.data.Error);
-                } else {
-                    setCustomers(res.data);
-                }
+                // Filter di frontend juga untuk keamanan ganda (Hanya tampilkan User, bukan Admin)
+                const userOnly = res.data.filter(u => u.role === 'user');
+                setCustomers(userOnly);
             })
             .catch(err => console.error(err));
     };
 
     const handleDelete = (id) => {
-        if(window.confirm("Yakin ingin menghapus pelanggan ini?")) {
-            axios.delete('http://localhost:3000/customers/' + id)
+        if(window.confirm("Yakin ingin menonaktifkan Pelanggan ini? (Riwayat transaksi akan tetap aman)")) {
+            axios.delete('http://localhost:3000/auth/delete/' + id)
                 .then(res => {
                     if(res.data.Status === "Success") {
-                        loadCustomers();
+                        alert("Pelanggan berhasil dinonaktifkan.");
+                        loadCustomers(); // Refresh list
                     } else {
                         alert("Gagal: " + res.data.Error);
                     }
                 })
-                .catch(err => console.log(err));
+                .catch(err => alert("Error Server: " + err.message));
         }
     };
 
     return (
-        <div style={{color: 'white'}}>
-            <h2 style={{marginBottom:'20px', color:'black'}}>Data Pelanggan</h2>
-
-            <div style={{overflowX:'auto'}}>
-                <table style={{width:'100%', borderCollapse:'collapse', background:'#1e1e1e', color:'white', borderRadius:'8px', overflow:'hidden'}}>
+        <div style={{ padding: '30px', fontFamily: 'Arial' }}>
+            <h2 style={{ marginBottom: '20px' }}>Data Pelanggan</h2>
+            <div style={{ overflowX: 'auto', background: 'white', borderRadius: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
-                        <tr style={{background:'#cc0000', color:'white'}}>
-                            <th style={{padding:'15px', textAlign:'left'}}>ID</th>
-                            <th style={{padding:'15px', textAlign:'left'}}>Nama Pelanggan</th>
-                            <th style={{padding:'15px', textAlign:'left'}}>Email / Kontak</th>
-                            <th style={{padding:'15px', textAlign:'left'}}>Room Aktif</th>
-                            <th style={{padding:'15px', textAlign:'left'}}>Aksi</th>
+                        <tr style={{ background: '#a71d2a', color: 'white', textAlign: 'left' }}>
+                            <th style={{ padding: '15px' }}>ID</th>
+                            <th style={{ padding: '15px' }}>Nama Pelanggan</th>
+                            <th style={{ padding: '15px' }}>Email / Kontak</th>
+                            <th style={{ padding: '15px' }}>Role</th>
+                            <th style={{ padding: '15px' }}>Aksi</th>
                         </tr>
                     </thead>
                     <tbody>
                         {customers.map((c, index) => (
-                            <tr key={index} style={{borderBottom:'1px solid #333'}}>
-                                <td style={{padding:'15px'}}>{c.id}</td>
-                                <td style={{padding:'15px', fontWeight:'bold'}}>{c.username}</td>
-                                <td style={{padding:'15px'}}>
+                            <tr key={index} style={{ borderBottom: '1px solid #eee' }}>
+                                <td style={{ padding: '15px' }}>{c.id}</td>
+                                <td style={{ padding: '15px', fontWeight: 'bold' }}>{c.username}</td>
+                                <td style={{ padding: '15px' }}>
                                     {c.email}<br/>
-                                    <small style={{color:'#aaa'}}>{c.phone}</small>
+                                    <span style={{ fontSize:'12px', color:'#666' }}>{c.phone}</span>
                                 </td>
-                                <td style={{padding:'15px'}}>
-                                    {c.active_room ? (
-                                        <span style={{background:'green', padding:'5px 10px', borderRadius:'5px', fontSize:'12px'}}>
-                                            {c.active_room}
-                                        </span>
-                                    ) : (
-                                        <span style={{color:'#777'}}>-</span>
-                                    )}
-                                </td>
-                                <td style={{padding:'15px'}}>
-                                    <button onClick={() => handleDelete(c.id)} style={{background:'#dc3545', color:'white', border:'none', padding:'8px 15px', cursor:'pointer', borderRadius:'4px'}}>
+                                <td style={{ padding: '15px' }}>{c.role}</td>
+                                <td style={{ padding: '15px' }}>
+                                    <button 
+                                        onClick={() => handleDelete(c.id)}
+                                        style={{ background: '#dc3545', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}
+                                    >
                                         Hapus
                                     </button>
                                 </td>
                             </tr>
                         ))}
-                        {customers.length === 0 && (
-                            <tr>
-                                <td colSpan="5" style={{padding:'20px', textAlign:'center', color:'#aaa'}}>
-                                    Belum ada data pelanggan.
-                                </td>
-                            </tr>
+                         {customers.length === 0 && (
+                            <tr><td colSpan="5" style={{padding:'20px', textAlign:'center'}}>Tidak ada data pelanggan aktif.</td></tr>
                         )}
                     </tbody>
                 </table>

@@ -6,9 +6,14 @@ import psRoutes from "./routes/ps.routes.js";
 import packageRoutes from "./routes/package.routes.js";
 import rentalRoutes from "./routes/rental.routes.js";
 import authRoutes from "./routes/auth.routes.js"; // <--- TAMBAHAN 1: Import Auth
-import customerRoutes from './routes/customer.routes.js';
+import customerRoutes from './routes/customer.routes.js';import path from 'path';
+import { fileURLToPath } from 'url';
 
 import db from "./db.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 
 const app = express();
 app.use(cors());
@@ -20,6 +25,7 @@ app.use("/packages", packageRoutes);
 app.use("/rentals", rentalRoutes);
 app.use("/auth", authRoutes); // <--- TAMBAHAN 2: Pasang route auth
 app.use('/customers', customerRoutes); // Pasang route
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // SERVER
 app.listen(3000, () => {

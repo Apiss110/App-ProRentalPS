@@ -3,97 +3,186 @@ import axios from 'axios';
 
 function AdminTransactions() {
     const [transactions, setTransactions] = useState([]);
+    
+    // --- 1. SETUP TANGGAL (DEFAULT HARI INI) ---
+    const getTodayString = () => {
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
+    // State untuk filter tanggal
+    const [filterDate, setFilterDate] = useState(getTodayString());
 
     useEffect(() => {
         loadTransactions();
+
+        // Auto refresh setiap 1 detik (sesuai kode Anda sebelumnya)
+        const interval = setInterval(() => {
+            loadTransactions();
+        }, 1000); 
+
+        return () => clearInterval(interval);
     }, []);
 
     const loadTransactions = () => {
-        // Ambil data dari route yang baru kita buat
-        axios.get('http://localhost:3000/rentals') 
+        axios.get('http://localhost:3000/rentals')
             .then(res => setTransactions(res.data))
             .catch(err => console.error(err));
     };
 
-    // Fungsi untuk memberhentikan sewa secara paksa
-    const handleStop = (rentalId, psId) => {
-        if(window.confirm("Yakin ingin memberhentikan rental ini? Status PS akan menjadi Available.")) {
-            axios.put(`http://localhost:3000/rentals/finish/${rentalId}`, { ps_id: psId })
+    // --- 2. LOGIKA FILTERING ---
+    const filteredTransactions = transactions.filter(item => {
+        // Jika filter tanggal kosong, tampilkan semua
+        if (!filterDate) return true;
+        
+        // Cek apakah data memiliki start_time_str (dari backend)
+        if (item.start_time_str) {
+            // Bandingkan apakah string tanggal di database (YYYY-MM-DD HH:mm:ss) 
+            // diawali dengan tanggal yang dipilih (YYYY-MM-DD)
+            return item.start_time_str.startsWith(filterDate);
+        }
+        return false;
+    });
+
+    const handleVerify = (id, action) => {
+        const confirmMsg = action === 'accept' ? "Yakin ingin MENYETUJUI transaksi ini?" : "Yakin ingin MENOLAK transaksi ini?";
+        if(window.confirm(confirmMsg)) {
+            axios.put(`http://localhost:3000/rentals/verify/${id}`, { action })
                 .then(res => {
                     if(res.data.Status === "Success") {
-                        alert("Rental berhasil dihentikan!");
-                        loadTransactions(); // Refresh tabel
+                        alert(`Berhasil ${action === 'accept' ? 'Disetujui' : 'Ditolak'}!`);
+                        loadTransactions(); 
                     } else {
-                        alert("Gagal update");
+                        alert("Gagal: " + res.data.Error);
                     }
                 })
-                .catch(err => console.log(err));
+                .catch(err => alert("Error Server"));
         }
     };
 
-    // Helper: Format Rupiah
-    const formatRupiah = (num) => {
-        return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(num);
+    const handleViewProof = (filename) => {
+        if(filename) {
+            window.open(`http://localhost:3000/uploads/${filename}`, '_blank');
+        } else {
+            alert("Tidak ada bukti upload.");
+        }
     };
 
-    // Helper: Format Tanggal
-    const formatDate = (dateString) => {
-        if(!dateString) return "-";
-        return new Date(dateString).toLocaleString('id-ID'); // Format tanggal Indonesia
-    };
+    const formatRupiah = (num) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(num);
 
     return (
-        <div style={{color: 'white'}}>
-            <h2 style={{marginBottom:'20px', color:'black'}}>Data Transaksi</h2>
+        <div style={{ padding: '30px', fontFamily: 'Arial, sans-serif' }}>
+            <h2 style={{ marginBottom: '20px', color: '#eee' }}>Data Transaksi & Laporan</h2>
 
-            <div style={{overflowX:'auto'}}>
-                <table style={{width:'100%', borderCollapse:'collapse', background:'#1e1e1e', color:'white', borderRadius:'8px', overflow:'hidden'}}>
+            {/* --- 3. UI FILTER TANGGAL --- */}
+            <div style={{ background: '#333', padding: '20px', borderRadius: '8px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '15px', border: '1px solid #444' }}>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <label style={{ color: '#aaa', fontSize: '12px', marginBottom: '5px' }}>Pilih Tanggal:</label>
+                    <input 
+                        type="date" 
+                        value={filterDate}
+                        onChange={(e) => setFilterDate(e.target.value)}
+                        // Tidak ada min/max, jadi bisa pilih tanggal berapapun (sebelum/sesudah)
+                        style={{ padding: '8px 12px', borderRadius: '4px', border: 'none', outline: 'none' }}
+                    />
+                </div>
+
+                <div style={{ marginTop: '18px' }}>
+                    <button 
+                        onClick={() => setFilterDate('')} // Kosongkan filter untuk lihat semua
+                        style={{ background: '#555', color: 'white', border: '1px solid #666', padding: '8px 15px', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}
+                    >
+                        Tampilkan Semua
+                    </button>
+                </div>
+
+                <div style={{ marginLeft: 'auto', color: '#ccc', fontSize: '14px' }}>
+                    Total Data: <strong>{filteredTransactions.length}</strong>
+                </div>
+            </div>
+
+            <div style={{ overflowX: 'auto', background: '#222', borderRadius: '8px', boxShadow: '0 2px 10px rgba(0,0,0,0.3)', border: '1px solid #444' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', color: '#ddd' }}>
                     <thead>
-                        <tr style={{background:'#cc0000', color:'white'}}>
-                            <th style={{padding:'12px', textAlign:'left'}}>ID</th>
-                            <th style={{padding:'12px', textAlign:'left'}}>Penyewa</th>
-                            <th style={{padding:'12px', textAlign:'left'}}>Unit PS</th>
-                            <th style={{padding:'12px', textAlign:'left'}}>Durasi</th>
-                            <th style={{padding:'12px', textAlign:'left'}}>Total Harga</th>
-                            <th style={{padding:'12px', textAlign:'left'}}>Waktu Mulai</th>
-                            <th style={{padding:'12px', textAlign:'center'}}>Status</th>
-                            <th style={{padding:'12px', textAlign:'center'}}>Aksi</th>
+                        <tr style={{ background: '#333', textAlign: 'left', borderBottom: '2px solid #555' }}>
+                            <th style={{ padding: '15px' }}>ID</th>
+                            <th style={{ padding: '15px' }}>Waktu Main</th> {/* Kolom Tambahan agar jelas tanggalnya */}
+                            <th style={{ padding: '15px' }}>Pelanggan</th>
+                            <th style={{ padding: '15px' }}>Room</th>
+                            <th style={{ padding: '15px' }}>Total Harga</th>
+                            <th style={{ padding: '15px' }}>Metode</th>
+                            <th style={{ padding: '15px' }}>Status</th>
+                            <th style={{ padding: '15px' }}>Bukti</th>
+                            <th style={{ padding: '15px' }}>Aksi</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {transactions.map((t, index) => (
-                            <tr key={index} style={{borderBottom:'1px solid #333'}}>
-                                <td style={{padding:'12px'}}>{t.id}</td>
-                                <td style={{padding:'12px', fontWeight:'bold', color:'#4db8ff'}}>{t.username}</td>
-                                <td style={{padding:'12px'}}>{t.ps_name}</td>
-                                <td style={{padding:'12px'}}>{t.duration} Jam</td>
-                                <td style={{padding:'12px', color:'#00ff00', fontWeight:'bold'}}>{formatRupiah(t.total_price)}</td>
-                                <td style={{padding:'12px', fontSize:'13px'}}>{formatDate(t.start_time)}</td>
-                                <td style={{padding:'12px', textAlign:'center'}}>
-                                    {t.status === 'active' ? 
-                                        <span style={{background:'green', padding:'4px 8px', borderRadius:'4px', fontSize:'12px', fontWeight:'bold'}}>AKTIF</span> 
-                                        : 
-                                        <span style={{background:'#555', padding:'4px 8px', borderRadius:'4px', fontSize:'12px'}}>SELESAI</span>
-                                    }
+                        {/* GUNAKAN filteredTransactions DI SINI */}
+                        {filteredTransactions.map((item, index) => (
+                            <tr key={index} style={{ borderBottom: '1px solid #444' }}>
+                                <td style={{ padding: '15px' }}>{item.id}</td>
+                                <td style={{ padding: '15px', fontSize: '13px', color:'#aaa' }}>
+                                    {item.start_time_str || '-'}
                                 </td>
-                                <td style={{padding:'12px', textAlign:'center'}}>
-                                    {t.status === 'active' && (
-                                        <button onClick={() => handleStop(t.id, t.ps_id)} style={{background:'#ff9800', color:'black', border:'none', padding:'6px 12px', cursor:'pointer', borderRadius:'4px', fontWeight:'bold'}}>
-                                            STOP
+                                <td style={{ padding: '15px' }}>{item.username || <span style={{color:'red'}}>(Dihapus)</span>}</td>
+                                <td style={{ padding: '15px' }}>{item.ps_name || <span style={{color:'red'}}>(Dihapus)</span>}</td>
+                                <td style={{ padding: '15px' }}>{formatRupiah(item.total_price)}</td>
+                                <td style={{ padding: '15px', fontStyle: item.payment_method ? 'normal' : 'italic', color: item.payment_method ? '#fff' : '#888' }}>
+                                    {item.payment_method || 'Belum memilih'}
+                                </td>
+                                
+                                <td style={{ padding: '15px', fontWeight: 'bold' }}>
+                                    {item.payment_status === 'paid' && <span style={{color: '#28a745'}}>BERHASIL</span>}
+                                    {item.payment_status === 'rejected' && <span style={{color: '#dc3545'}}>DITOLAK</span>}
+                                    {item.payment_status === 'pending' && <span style={{color: '#ffc107'}}>MENUNGGU</span>}
+                                    {item.payment_status === 'unpaid' && <span style={{color: '#6c757d'}}>BELUM BAYAR</span>}
+                                </td>
+
+                                <td style={{ padding: '15px' }}>
+                                    {item.payment_proof ? (
+                                        <button 
+                                            onClick={() => handleViewProof(item.payment_proof)}
+                                            style={{ background: '#007bff', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize:'12px' }}
+                                        >
+                                            Lihat
                                         </button>
+                                    ) : (
+                                        <span style={{ fontSize:'12px', color:'#888', fontStyle:'italic' }}>Tidak ada</span>
+                                    )}
+                                </td>
+
+                                <td style={{ padding: '15px' }}>
+                                    {item.payment_status === 'paid' ? (
+                                        <span style={{ color: '#28a745', fontWeight: 'bold' }}>Selesai</span>
+                                    ) : (
+                                        <div style={{ display: 'flex', gap: '5px' }}>
+                                            <button 
+                                                onClick={() => handleVerify(item.id, 'accept')}
+                                                style={{ background: '#28a745', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize:'12px' }}
+                                            >
+                                                Setujui
+                                            </button>
+                                            <button 
+                                                onClick={() => handleVerify(item.id, 'reject')}
+                                                style={{ background: '#dc3545', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize:'12px' }}
+                                            >
+                                                Tolak
+                                            </button>
+                                        </div>
                                     )}
                                 </td>
                             </tr>
                         ))}
-                        {transactions.length === 0 && (
-                            <tr>
-                                <td colSpan="8" style={{padding:'20px', textAlign:'center', color:'#aaa'}}>
-                                    Belum ada data transaksi.
-                                </td>
-                            </tr>
-                        )}
                     </tbody>
                 </table>
+                {filteredTransactions.length === 0 && (
+                    <div style={{ padding: '30px', textAlign: 'center', color: '#888' }}>
+                        Tidak ada data transaksi pada tanggal <strong>{filterDate || 'Semua'}</strong>.
+                    </div>
+                )}
             </div>
         </div>
     );

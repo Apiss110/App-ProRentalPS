@@ -3,59 +3,46 @@ import db from '../db.js';
 
 const router = express.Router();
 
-// 1. AMBIL SEMUA DATA ROOM
+// --- 1. AMBIL SEMUA DATA ---
 router.get('/', (req, res) => {
-    const sql = "SELECT * FROM ps_units ORDER BY id ASC";
+    const sql = "SELECT * FROM ps_units";
     db.query(sql, (err, data) => {
-        if(err) {
-            console.error("Error GET Room:", err);
-            return res.json({Error: err.sqlMessage});
-        }
+        if(err) return res.json({Error: "Error SQL"});
         return res.json(data);
     });
 });
 
-// 2. TAMBAH ROOM BARU
-router.post('/', (req, res) => {
-    const { name, price_per_hour, capacity } = req.body;
-    
-    // Pastikan query insert sesuai dengan nama kolom di database Anda
+// --- 2. TAMBAH DATA ---
+router.post('/add', (req, res) => {
     const sql = "INSERT INTO ps_units (name, price_per_hour, capacity, status) VALUES (?, ?, ?, 'available')";
+    const values = [req.body.name, req.body.price, req.body.capacity];
     
-    db.query(sql, [name, price_per_hour, capacity], (err, result) => {
-        if(err) {
-            console.error("Error INSERT Room:", err); // Cek terminal jika error
-            return res.json({Error: err.sqlMessage || "Gagal menambah room"}); // Kirim pesan asli ke frontend
-        }
+    db.query(sql, values, (err, result) => {
+        if(err) return res.json({Error: "Gagal insert data"});
         return res.json({Status: "Success"});
     });
 });
 
-// 3. EDIT ROOM
-router.put('/:id', (req, res) => {
+// --- 3. EDIT / UPDATE DATA (INI YANG DITAMBAHKAN) ---
+router.put('/update/:id', (req, res) => {
     const id = req.params.id;
-    const { name, price_per_hour, capacity } = req.body;
     const sql = "UPDATE ps_units SET name=?, price_per_hour=?, capacity=? WHERE id=?";
-    
-    db.query(sql, [name, price_per_hour, capacity, id], (err, result) => {
+    const values = [req.body.name, req.body.price, req.body.capacity, id];
+
+    db.query(sql, values, (err, result) => {
         if(err) {
-            console.error("Error UPDATE Room:", err);
-            return res.json({Error: err.sqlMessage});
+            console.error(err);
+            return res.json({Error: "Gagal update data"});
         }
         return res.json({Status: "Success"});
     });
 });
 
-// 4. HAPUS ROOM
-router.delete('/:id', (req, res) => {
-    const id = req.params.id;
-    const sql = "DELETE FROM ps_units WHERE id=?";
-    
-    db.query(sql, [id], (err, result) => {
-        if(err) {
-            console.error("Error DELETE Room:", err);
-            return res.json({Error: err.sqlMessage});
-        }
+// --- 4. HAPUS DATA ---
+router.delete('/delete/:id', (req, res) => {
+    const sql = "DELETE FROM ps_units WHERE id = ?";
+    db.query(sql, [req.params.id], (err, result) => {
+        if(err) return res.json({Error: "Error delete"});
         return res.json({Status: "Success"});
     });
 });

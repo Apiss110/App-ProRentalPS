@@ -5,35 +5,57 @@ import { useNavigate } from 'react-router-dom';
 function UserRental() {
     const navigate = useNavigate();
     
-    // State Data
-    const [psList, setPsList] = useState([]);
-    
-    // State Form
-    const [selectedPS, setSelectedPS] = useState("");
-    const [duration, setDuration] = useState(1);
-    const [date, setDate] = useState(new Date().toISOString().split('T')[0]); // Default hari ini
-    const [time, setTime] = useState("08:00"); // Default jam 8 pagi
+    // --- FUNGSI HELPER: AMBIL TANGGAL HARI INI ---
+    const getTodayString = () => {
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
 
-    // MEMBUAT LIST JAM (00.00, 01.00, dst)
-    const timeOptions = [];
+    // --- STATE DATA ---
+    const [psList, setPsList] = useState([]);
+    const [allRentals, setAllRentals] = useState([]); 
+
+    // --- STATE FORM ---
+    const [selectedPS, setSelectedPS] = useState(null); 
+    const [date, setDate] = useState(getTodayString()); 
+    const [time, setTime] = useState("08:00");
+    const [duration, setDuration] = useState(1);
+
+    // --- LIST JAM (00:00 - 23:00) ---
+    const timeSlots = [];
     for (let i = 0; i < 24; i++) {
-        // Format angka jadi 2 digit (misal 9 jadi 09)
         const hour = i < 10 ? `0${i}` : i;
-        
-        const value = `${hour}:00`; // Nilai untuk sistem (08:00)
-        const label = `${hour}.00`; // Teks untuk tampilan (08.00)
-        
-        timeOptions.push({ value, label });
+        timeSlots.push(`${hour}:00`);
     }
 
-    // Ambil Data Room (PS) saat halaman dibuka
+    // --- 1. AMBIL DATA SAAT LOAD & AUTO REFRESH ---
     useEffect(() => {
-        axios.get('http://localhost:3000/ps')
-            .then(res => setPsList(res.data))
-            .catch(err => console.error(err));
+        loadData(); 
+
+        const interval = setInterval(() => {
+            axios.get('http://localhost:3000/rentals')
+                 .then(res => setAllRentals(res.data))
+                 .catch(err => console.error(err));
+        }, 1000); // Cek update setiap 3 detik
+
+        return () => clearInterval(interval);
     }, []);
 
-    // Format Rupiah
+    const loadData = async () => {
+        try {
+            const resPS = await axios.get('http://localhost:3000/ps');
+            setPsList(resPS.data);
+
+            const resRentals = await axios.get('http://localhost:3000/rentals');
+            setAllRentals(resRentals.data);
+        } catch (error) {
+            console.error("Gagal ambil data:", error);
+        }
+    };
+
     const formatRupiah = (number) => {
         return new Intl.NumberFormat("id-ID", {
             style: "currency",
@@ -42,22 +64,45 @@ function UserRental() {
         }).format(number);
     };
 
-    // Handle Submit Sewa
+    // --- LOGIKA CEK KETERSEDIAAN ---
+    const checkAvailability = (slotTime) => {
+        if (!selectedPS) return "Pilih Room"; // Biarkan tampil jika belum pilih room
+
+        const booked = allRentals.filter(r => 
+            r.ps_id === selectedPS && 
+            r.status === 'active' && 
+            r.start_time_str && 
+            r.start_time_str.startsWith(date) 
+        );
+
+        const isBooked = booked.some(r => {
+            const rentalStartHour = parseInt(r.start_time_str.split(' ')[1].split(':')[0]);
+            const slotHour = parseInt(slotTime.split(':')[0]); 
+            const rentalEndHour = rentalStartHour + r.duration; 
+            
+            // Cek bentrok jam
+            return slotHour >= rentalStartHour && slotHour < rentalEndHour;
+        });
+
+        return isBooked ? "Penuh" : "Tersedia";
+    };
+
+    // --- HANDLE SEWA ---
     const handleRent = (e) => {
         e.preventDefault();
-
-        // Validasi
-        if (!selectedPS) return alert("Harap pilih Room terlebih dahulu!");
+        if (!selectedPS) return alert("Harap pilih jenis tiket (Room) terlebih dahulu!");
         
-        const userId = localStorage.getItem("userId");
+        const userId = sessionStorage.getItem("id"); 
         if (!userId) return alert("Sesi habis, silakan login ulang.");
 
-        // Hitung Total Harga
-        const unit = psList.find((u) => u.id === parseInt(selectedPS));
-        const price = unit ? unit.price_per_hour : 0;
-        const totalPrice = price * duration;
+        // Validasi lagi saat tombol ditekan (Double check)
+        if (checkAvailability(time) === "Penuh") {
+            return alert("Maaf, jam tersebut baru saja diambil orang lain. Silakan pilih jam lain.");
+        }
 
-        // Kirim ke Backend
+        const unit = psList.find((u) => u.id === selectedPS);
+        const totalPrice = unit ? unit.price_per_hour * duration : 0;
+
         axios.post("http://localhost:3000/rentals", {
             ps_id: selectedPS,
             user_id: userId,
@@ -69,8 +114,7 @@ function UserRental() {
         })
         .then((res) => {
             if(res.data.Status === "Success") {
-                alert(`Berhasil Booking Room ${unit.name}!\nTotal: ${formatRupiah(totalPrice)}`);
-                navigate('/'); 
+                navigate(`/transaction/${res.data.rentalId}`); 
             } else {
                 alert("Gagal: " + res.data.Error);
             }
@@ -79,141 +123,164 @@ function UserRental() {
     };
 
     return (
-        <div style={{ 
-            minHeight: '100vh', 
-            background: '#f4f4f4', 
-            display: 'flex', 
-            justifyContent: 'center', 
-            alignItems: 'center', 
-            padding: '40px 20px',
-            fontFamily: 'Arial, sans-serif'
-        }}>
+        <div style={{ fontFamily: 'Arial, sans-serif', background: '#f9f9f9', minHeight: '100vh' }}>
             
-            <div style={{ 
-                background: 'white', 
-                width: '100%', 
-                maxWidth: '800px', 
-                borderRadius: '15px', 
-                boxShadow: '0 4px 15px rgba(0,0,0,0.1)',
-                padding: '40px'
-            }}>
+            {/* HEADER */}
+            <div style={{ background: 'white', padding: '20px 50px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <h2 style={{ margin: 0, color: '#cc0000' }}>Play&Go Rental</h2>
+                <button onClick={() => navigate('/')} style={{ background:'transparent', border:'1px solid #ddd', padding:'8px 15px', borderRadius:'5px', cursor:'pointer' }}>
+                    Kembali
+                </button>
+            </div>
 
-                <h2 style={{ textAlign: 'center', color: '#cc0000', marginBottom: '30px', fontWeight: 'bold' }}>
-                    Price List & Sewa PS
-                </h2>
+            {/* CONTAINER */}
+            <div style={{ maxWidth: '1200px', margin: '30px auto', display: 'flex', gap: '30px', padding: '0 20px', flexWrap: 'wrap' }}>
+                
+                {/* KOLOM KIRI (INFO) */}
+                <div style={{ flex: '1.5', minWidth: '300px' }}>
+                    <div style={{ width: '100%', height: '200px', background: 'linear-gradient(45deg, #cc0000, #ff4d4d)', borderRadius: '10px', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '24px', fontWeight: 'bold' }}>
+                        FOTO RENTAL DISINI
+                    </div>
+                    <h1 style={{ fontSize: '28px', marginBottom: '5px' }}>Play&Go Bandung</h1>
+                    <p style={{ color: '#666', marginBottom: '20px' }}>📍 Jl. Merdeka No. 123, Bandung | 📞 0812-3456-7890</p>
 
-                {/* TABEL PRICE LIST */}
-                <div style={{ overflowX: 'auto', marginBottom: '40px', borderRadius: '8px', border: '1px solid #ddd' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                        <thead>
-                            <tr style={{ background: '#cc0000', color: 'white' }}>
-                                <th style={{ padding: '12px', textAlign: 'left' }}>Nama Room</th>
-                                <th style={{ padding: '12px', textAlign: 'left' }}>Harga / Jam</th>
-                                <th style={{ padding: '12px', textAlign: 'left' }}>Kapasitas</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {psList.map((item, index) => (
-                                <tr key={item.id} style={{ background: index % 2 === 0 ? '#f9f9f9' : 'white', borderBottom: '1px solid #eee' }}>
-                                    <td style={{ padding: '12px', fontWeight: 'bold' }}>{item.name}</td>
-                                    <td style={{ padding: '12px' }}>{formatRupiah(item.price_per_hour)}</td>
-                                    <td style={{ padding: '12px' }}>{item.capacity} Orang</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                    <div style={{ background: 'white', padding: '25px', borderRadius: '10px', boxShadow: '0 2px 10px rgba(0,0,0,0.05)', marginBottom: '20px' }}>
+                        <h3 style={{ borderBottom: '2px solid #eee', paddingBottom: '10px', marginBottom: '15px' }}>Sorotan / Aturan</h3>
+                        <ul style={{ lineHeight: '1.8', color: '#444', paddingLeft: '20px' }}>
+                            <li>Dilarang merokok (Vape diperbolehkan)</li>
+                            <li>Dilarang membuang sampah sembarangan</li>
+                            <li>Wajib menjaga ketertiban dan kenyamanan bersama</li>
+                        </ul>
+                    </div>
+
+                    {/* TABEL KETERSEDIAAN VISUAL */}
+                    <div style={{ marginTop: '30px' }}>
+                        <h3 style={{ marginBottom: '15px' }}>Cek Ketersediaan ({date})</h3>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 20px', background: '#f1f3f5', borderRadius: '8px 8px 0 0', fontWeight: 'bold', color: '#555' }}>
+                            <span>Waktu</span>
+                            <span>Status / Harga</span>
+                        </div>
+                        <div style={{ background: 'white', borderRadius: '0 0 10px 10px', overflow: 'hidden', boxShadow: '0 2px 10px rgba(0,0,0,0.05)', border: '1px solid #eee' }}>
+                            {timeSlots.map((slot) => {
+                                const status = checkAvailability(slot);
+                                const currentHour = parseInt(slot.split(':')[0]);
+                                let nextHour = currentHour + 1;
+                                if(nextHour === 24) nextHour = 0;
+                                const nextSlot = `${nextHour < 10 ? '0' + nextHour : nextHour}:00`;
+
+                                return (
+                                    <div key={slot} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 20px', borderBottom: '1px dashed #eee', background: status === "Penuh" ? '#fff5f5' : 'white' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                            <span style={{ fontWeight: 'bold', fontSize: '16px', color: '#333' }}>{slot}</span>
+                                            <span style={{ fontSize: '13px', color: '#999' }}>{nextSlot}</span>
+                                        </div>
+                                        <div style={{ textAlign: 'right' }}>
+                                            {selectedPS ? (
+                                                <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end' }}>
+                                                    {status === "Tersedia" && (
+                                                        <span style={{ fontWeight: 'bold', color: '#333', fontSize:'14px' }}>
+                                                            {formatRupiah(psList.find(p => p.id === selectedPS)?.price_per_hour)}
+                                                        </span>
+                                                    )}
+                                                    <span style={{ color: status === "Penuh" ? '#dc3545' : '#888', fontSize: '13px', marginTop: '2px' }}>
+                                                        {status === "Penuh" ? "Tidak Tersedia" : "Tersedia"}
+                                                    </span>
+                                                </div>
+                                            ) : (
+                                                <span style={{ color: '#aaa', fontSize: '12px' }}>-</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
                 </div>
 
-                {/* FORM PEMESANAN */}
-                <h3 style={{ color: '#cc0000', marginBottom: '20px', borderBottom: '2px solid #eee', paddingBottom: '10px' }}>
-                    Form Pemesanan
-                </h3>
+                {/* KOLOM KANAN (FORM) */}
+                <div style={{ flex: '1', minWidth: '300px' }}>
+                    <div style={{ background: 'white', padding: '30px', borderRadius: '10px', boxShadow: '0 5px 20px rgba(0,0,0,0.08)', position: 'sticky', top: '20px' }}>
+                        <h3 style={{ marginBottom: '20px' }}>Pesan Sekarang</h3>
 
-                <form onSubmit={handleRent}>
-                    {/* Input Tanggal */}
-                    <div style={{ marginBottom: '15px' }}>
-                        <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Tanggal:</label>
-                        <input 
-                            type="date" 
-                            value={date}
-                            onChange={(e) => setDate(e.target.value)}
-                            style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #ccc' }}
-                        />
+                        <form onSubmit={handleRent}>
+                            <div style={{ marginBottom: '20px' }}>
+                                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px', fontSize: '14px' }}>Tanggal</label>
+                                <input 
+                                    type="date" 
+                                    value={date}
+                                    min={getTodayString()}
+                                    onChange={(e) => setDate(e.target.value)}
+                                    style={{ width: '100%', padding: '12px', borderRadius: '5px', border: '1px solid #ddd', background:'#f9f9f9' }}
+                                />
+                            </div>
+
+                            <div style={{ marginBottom: '20px' }}>
+                                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px', fontSize: '14px' }}>Jenis Tiket (Room)</label>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                                    {psList.map((ps) => (
+                                        <button
+                                            key={ps.id}
+                                            type="button"
+                                            onClick={() => setSelectedPS(ps.id)}
+                                            style={{
+                                                padding: '10px 15px',
+                                                border: selectedPS === ps.id ? '2px solid #cc0000' : '1px solid #ddd',
+                                                background: selectedPS === ps.id ? '#fff5f5' : 'white',
+                                                color: selectedPS === ps.id ? '#cc0000' : '#333',
+                                                borderRadius: '6px',
+                                                cursor: 'pointer',
+                                                fontWeight: selectedPS === ps.id ? 'bold' : 'normal',
+                                                flex: '1 1 40%', 
+                                                fontSize: '13px'
+                                            }}
+                                        >
+                                            {ps.name}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+                                <div style={{ flex: 1 }}>
+                                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px', fontSize: '14px' }}>Jam Mulai</label>
+                                    
+                                    {/* --- BAGIAN INI TELAH DIUBAH --- */}
+                                    <select 
+                                        value={time}
+                                        onChange={(e) => setTime(e.target.value)}
+                                        style={{ width: '100%', padding: '12px', borderRadius: '5px', border: '1px solid #ddd' }}
+                                    >
+                                        {timeSlots
+                                            // FILTER: Hanya tampilkan jam yang TIDAK "Penuh"
+                                            .filter(t => checkAvailability(t) !== "Penuh")
+                                            .map((t) => (
+                                                <option key={t} value={t}>{t}</option>
+                                            ))
+                                        }
+                                        {/* Jika semua jam penuh, opsi mungkin kosong. Anda bisa tambahkan handling jika mau */}
+                                    </select>
+                                    {/* ------------------------------- */}
+
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px', fontSize: '14px' }}>Durasi (Jam)</label>
+                                    <input 
+                                        type="number" min="1" max="10"
+                                        value={duration}
+                                        onChange={(e) => setDuration(e.target.value)}
+                                        style={{ width: '100%', padding: '12px', borderRadius: '5px', border: '1px solid #ddd' }}
+                                    />
+                                </div>
+                            </div>
+
+                            <button 
+                                type="submit" 
+                                style={{ width: '100%', background: '#cc0000', color: 'white', padding: '15px', border: 'none', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 10px rgba(204,0,0,0.3)' }}
+                            >
+                                Pesan Sekarang
+                            </button>
+                        </form>
                     </div>
-
-                    {/* Input Pilih Room */}
-                    <div style={{ marginBottom: '15px' }}>
-                        <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Room:</label>
-                        <select 
-                            value={selectedPS} 
-                            onChange={(e) => setSelectedPS(e.target.value)}
-                            required
-                            style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #ccc', background: 'white' }}
-                        >
-                            <option value="">-- Pilih Room --</option>
-                            {psList.map((ps) => (
-                                <option key={ps.id} value={ps.id} disabled={ps.status !== 'available'}>
-                                    {ps.name} {ps.status !== 'available' ? '(Sedang Dipakai)' : ''} - {formatRupiah(ps.price_per_hour)}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-
-                    {/* INPUT JAM MULAI (YANG SUDAH DISEDERHANAKAN) */}
-                    <div style={{ marginBottom: '15px' }}>
-                        <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Jam Mulai:</label>
-                        <select 
-                            value={time}
-                            onChange={(e) => setTime(e.target.value)}
-                            style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #ccc', background: 'white' }}
-                        >
-                            {timeOptions.map((opt) => (
-                                <option key={opt.value} value={opt.value}>
-                                    {opt.label} {/* Sekarang tampil "08.00" saja */}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-
-                    {/* Input Lama Sewa */}
-                    <div style={{ marginBottom: '30px' }}>
-                        <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '5px' }}>Lama Sewa (jam):</label>
-                        <input 
-                            type="number" 
-                            min="1" 
-                            value={duration}
-                            onChange={(e) => setDuration(e.target.value)}
-                            style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #ccc' }}
-                        />
-                    </div>
-
-                    {/* TOMBOL SEWA */}
-                    <button 
-                        type="submit" 
-                        style={{ 
-                            width: '100%', 
-                            background: '#cc0000', 
-                            color: 'white', 
-                            padding: '15px', 
-                            border: 'none', 
-                            borderRadius: '8px', 
-                            fontSize: '16px', 
-                            fontWeight: 'bold',
-                            cursor: 'pointer',
-                            marginBottom: '20px'
-                        }}
-                    >
-                        Sewa Sekarang
-                    </button>
-                </form>
-
-                <div style={{ textAlign: 'center' }}>
-                    <span 
-                        onClick={() => navigate('/')} 
-                        style={{ color: '#cc0000', cursor: 'pointer', fontWeight: 'bold', textDecoration: 'none' }}
-                    >
-                        Kembali ke Dashboard
-                    </span>
                 </div>
 
             </div>
