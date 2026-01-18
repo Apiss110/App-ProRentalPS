@@ -1,9 +1,12 @@
 import express from "express";
 import cors from "cors";
 
+// --- ROUTES IMPORTS ---
 import psRoutes from "./routes/ps.routes.js";
 import packageRoutes from "./routes/package.routes.js";
 import rentalRoutes from "./routes/rental.routes.js";
+import authRoutes from "./routes/auth.routes.js"; // <--- TAMBAHAN 1: Import Auth
+import customerRoutes from './routes/customer.routes.js';
 
 import db from "./db.js";
 
@@ -11,10 +14,12 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// ROUTES
+// --- USE ROUTES ---
 app.use("/ps", psRoutes);
 app.use("/packages", packageRoutes);
 app.use("/rentals", rentalRoutes);
+app.use("/auth", authRoutes); // <--- TAMBAHAN 2: Pasang route auth
+app.use('/customers', customerRoutes); // Pasang route
 
 // SERVER
 app.listen(3000, () => {
