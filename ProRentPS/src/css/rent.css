@@ -1,0 +1,140 @@
+/* ================= GLOBAL RESET ================= */
+* {
+  box-sizing: border-box;
+  font-family: "Segoe UI", Tahoma, sans-serif;
+}
+
+/* ================= BACKGROUND ================= */
+body {
+  margin: 0;
+}
+
+.login-wrapper {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top, #7a5a38 0%, #2a1c12 60%),
+    repeating-linear-gradient(
+      0deg,
+      rgba(255,255,255,0.04),
+      rgba(255,255,255,0.04) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* ================= PANEL LOGIN ================= */
+.login-panel {
+  background: linear-gradient(180deg, #faf8f4, #eee6d7);
+  border: 3px solid #2a1c12;
+  border-radius: 14px;
+  width: 320px;
+  padding: 36px 28px;
+  box-shadow:
+    0 8px 0 #2a1c12,
+    0 18px 40px rgba(0,0,0,.55);
+}
+
+/* ================= TITLE ================= */
+.login-panel h2 {
+  margin-bottom: 22px;
+  font-size: 20px;
+  letter-spacing: 1px;
+  color: #2a1c12;
+  text-align: center;
+}
+
+/* ================= FORM ================= */
+.login-panel form {
+  width: 100%;
+}
+
+.login-panel label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #3a2a1a;
+}
+
+/* ================= INPUT ================= */
+.login-panel input {
+  width: 100%;
+  padding: 11px 12px;
+  border-radius: 8px;
+  border: 2px solid #2a1c12;
+  font-size: 14px;
+  background: #ffffff;
+  outline: none;
+  margin-top: 4px;
+  box-shadow: inset 0 2px 0 rgba(0,0,0,.15);
+}
+
+.login-panel input:focus {
+  border-color: #7a5a38;
+}
+
+/* ================= BUTTON ================= */
+.login-panel button {
+    width: 100%;
+    margin-top: 10px;
+    background: #e5c07b;
+    border: 3px solid #2a1c12;
+    border-radius: 15px;
+    padding: 12px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #2a1c12;
+    cursor: pointer;
+    box-shadow: 0 5px 0 #2a1c12;
+    transition: all 0.1s ease;
+}
+
+.login-panel button:focus {
+    outline: none;
+}
+
+.login-panel button:active {
+    transform: translateY(4px);
+    box-shadow: 0 1px 0 #2a1c12;
+}
+
+/* ================= LINK REGISTER ================= */
+.login-panel p {
+    margin-top: 20px;
+    font-size: 15px;
+    color: #444;
+}
+
+.login-panel a {
+  color: #5a3c22;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.login-panel a:hover {
+  text-decoration: underline;
+}
+
+
+
+.error-box {
+  background: #ff004c;
+  color: #fff;
+  padding: 10px;
+  margin-bottom: 15px;
+  border-radius: 6px;
+  font-size: 14px;
+  text-align: center;
+  box-shadow: 0 0 10px #ff004c;
+}
+.success-box {
+  background: #28a745;
+  color: #fff;
+  padding: 10px;
+  margin-bottom: 15px;
+  border-radius: 6px;
+  font-size: 14px;
+  text-align: center;
+  box-shadow: 0 0 10px #28a745;
+}

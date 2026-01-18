@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import '../css/admin.css';
 
 function AdminCustomers() {
     const [customers, setCustomers] = useState([]);
@@ -11,7 +12,6 @@ function AdminCustomers() {
     const loadCustomers = () => {
         axios.get('http://localhost:3000/auth/users')
             .then(res => {
-                // Filter di frontend juga untuk keamanan ganda (Hanya tampilkan User, bukan Admin)
                 const userOnly = res.data.filter(u => u.role === 'user');
                 setCustomers(userOnly);
             })
@@ -24,7 +24,7 @@ function AdminCustomers() {
                 .then(res => {
                     if(res.data.Status === "Success") {
                         alert("Pelanggan berhasil dinonaktifkan.");
-                        loadCustomers(); // Refresh list
+                        loadCustomers();
                     } else {
                         alert("Gagal: " + res.data.Error);
                     }
@@ -34,41 +34,48 @@ function AdminCustomers() {
     };
 
     return (
-        <div style={{ padding: '30px', fontFamily: 'Arial' }}>
-            <h2 style={{ marginBottom: '20px' }}>Data Pelanggan</h2>
-            <div style={{ overflowX: 'auto', background: 'white', borderRadius: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <div className="admin-wrapper">
+            <h2 className="admin-title">DATA PELANGGAN</h2>
+
+            <div className="table-wrapper">
+                <table className="admin-table">
                     <thead>
-                        <tr style={{ background: '#a71d2a', color: 'white', textAlign: 'left' }}>
-                            <th style={{ padding: '15px' }}>ID</th>
-                            <th style={{ padding: '15px' }}>Nama Pelanggan</th>
-                            <th style={{ padding: '15px' }}>Email / Kontak</th>
-                            <th style={{ padding: '15px' }}>Role</th>
-                            <th style={{ padding: '15px' }}>Aksi</th>
+                        <tr>
+                            <th>ID</th>
+                            <th>Nama Pelanggan</th>
+                            <th>Email / Kontak</th>
+                            <th>Role</th>
+                            <th>Aksi</th>
                         </tr>
                     </thead>
                     <tbody>
                         {customers.map((c, index) => (
-                            <tr key={index} style={{ borderBottom: '1px solid #eee' }}>
-                                <td style={{ padding: '15px' }}>{c.id}</td>
-                                <td style={{ padding: '15px', fontWeight: 'bold' }}>{c.username}</td>
-                                <td style={{ padding: '15px' }}>
-                                    {c.email}<br/>
-                                    <span style={{ fontSize:'12px', color:'#666' }}>{c.phone}</span>
+                            <tr key={index}>
+                                <td>{c.id}</td>
+                                <td className="bold">{c.username}</td>
+                                <td>
+                                    {c.email}
+                                    <br />
+                                    <span className="sub-text">{c.phone}</span>
                                 </td>
-                                <td style={{ padding: '15px' }}>{c.role}</td>
-                                <td style={{ padding: '15px' }}>
-                                    <button 
+                                <td>{c.role}</td>
+                                <td>
+                                    <button
+                                        className="btn-delete"
                                         onClick={() => handleDelete(c.id)}
-                                        style={{ background: '#dc3545', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}
                                     >
-                                        Hapus
+                                        NONAKTIFKAN
                                     </button>
                                 </td>
                             </tr>
                         ))}
-                         {customers.length === 0 && (
-                            <tr><td colSpan="5" style={{padding:'20px', textAlign:'center'}}>Tidak ada data pelanggan aktif.</td></tr>
+
+                        {customers.length === 0 && (
+                            <tr>
+                                <td colSpan="5" className="empty">
+                                    Tidak ada data pelanggan aktif.
+                                </td>
+                            </tr>
                         )}
                     </tbody>
                 </table>

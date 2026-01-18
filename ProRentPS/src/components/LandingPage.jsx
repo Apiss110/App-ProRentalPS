@@ -76,7 +76,7 @@ function Navbar({ colors }) {
       padding: '20px 40px', background: colors.accent, borderBottom: `4px solid ${colors.dark}`
     }}>
       <div style={{ fontFamily: "'Press Start 2P', cursive", fontSize: '18px', color: colors.dark }}>
-        PRO-RENT
+        RetroPlay
       </div>
       
       <div>
