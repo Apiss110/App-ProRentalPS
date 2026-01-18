@@ -43,7 +43,33 @@ function GlobalStyle() {
       .reveal.show .stagger > *:nth-child(2){transition-delay:.25s}
       .reveal.show .stagger > *:nth-child(3){transition-delay:.4s}
       .reveal.show .stagger > *:nth-child(4){transition-delay:.55s}
-    `}</style>
+
+      /* === HERO IMAGE ANIMATION === */
+  @keyframes floatPS {
+    0% { transform: translateY(0) scale(1.08); }
+    50% { transform: translateY(-18px) scale(1.1); }
+    100% { transform: translateY(0) scale(1.08); }
+  }
+
+  @keyframes glowPulse {
+    0% { filter: drop-shadow(0 20px 40px rgba(0,0,0,.5)); }
+    50% { filter: drop-shadow(0 35px 55px rgba(229,192,123,.6)); }
+    100% { filter: drop-shadow(0 20px 40px rgba(0,0,0,.5)); }
+  }
+
+  .hero-ps {
+    animation:
+      floatPS 6s ease-in-out infinite,
+      glowPulse 4.5s ease-in-out infinite;
+    transition: transform .4s ease;
+    will-change: transform;
+  }
+
+  .hero-ps:hover {
+    transform: scale(1.14) rotate(-1deg);
+  }
+
+}    `}</style>
   );
 }
 
@@ -154,7 +180,36 @@ function HeroSection({ colors }) {
           </div>
         </div>
         <div style={{ textAlign: "center" }}>
-          <img src={heroPS} alt="PlayStation" style={{ width: "100%", maxWidth: "420px", filter: "drop-shadow(0 25px 40px rgba(0,0,0,.5))" }} />
+          <div
+  style={{
+    position: "relative",
+    display: "flex",
+    justifyContent: "center",
+  }}
+>
+  <img
+    src={heroPS}
+    alt="PlayStation"
+    className="hero-ps"
+    style={{
+      width: "120%",
+      maxWidth: "520px",
+      zIndex: 2,
+    }}
+  />
+
+  {/* backdrop glow */}
+  <div
+    style={{
+      position: "absolute",
+      inset: "20% 10%",
+      background: "radial-gradient(circle, rgba(229,192,123,.35), transparent 70%)",
+      filter: "blur(40px)",
+      zIndex: 1,
+    }}
+  />
+</div>
+
         </div>
       </div>
     </section>
