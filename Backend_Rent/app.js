@@ -1,19 +1,18 @@
 import express from "express";
 import cors from "cors";
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 // --- ROUTES IMPORTS ---
 import psRoutes from "./routes/ps.routes.js";
 import packageRoutes from "./routes/package.routes.js";
 import rentalRoutes from "./routes/rental.routes.js";
-import authRoutes from "./routes/auth.routes.js"; // <--- TAMBAHAN 1: Import Auth
-import customerRoutes from './routes/customer.routes.js';import path from 'path';
-import { fileURLToPath } from 'url';
-
+import authRoutes from "./routes/auth.routes.js"; 
+import customerRoutes from './routes/customer.routes.js';
 import db from "./db.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
 
 const app = express();
 app.use(cors());
@@ -23,8 +22,8 @@ app.use(express.json());
 app.use("/ps", psRoutes);
 app.use("/packages", packageRoutes);
 app.use("/rentals", rentalRoutes);
-app.use("/auth", authRoutes); // <--- TAMBAHAN 2: Pasang route auth
-app.use('/customers', customerRoutes); // Pasang route
+app.use("/auth", authRoutes); 
+app.use('/customers', customerRoutes); 
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // SERVER
@@ -32,31 +31,22 @@ app.listen(3000, () => {
   console.log("Server running on port 3000");
 });
 
-// AUTO-FINISH RENTAL (cek tiap 1 menit)
+// --- ROBOT OTOMATIS (Update Setiap 1 Menit) ---
 setInterval(() => {
+  // 1. Cari rental yang AKTIF tapi WAKTUNYA SUDAH HABIS
   db.query(
-    `SELECT * FROM rentals 
-     WHERE status = 'active' 
-     AND end_time <= NOW()`,
+    `SELECT * FROM rentals WHERE status = 'active' AND end_time <= NOW()`,
     (err, rentals) => {
-      if (err) return console.error(err);
+      if (err) return console.error("Auto-finish check error:", err);
 
       rentals.forEach((rental) => {
-        // 1. Selesaikan rental
-        db.query(
-          "UPDATE rentals SET status = 'finished' WHERE id = ?",
-          [rental.id],
-          (err) => { if(err) console.error(err); }
-        );
+        // A. Ubah Status Rental jadi 'finished'
+        db.query("UPDATE rentals SET status = 'finished' WHERE id = ?", [rental.id]);
 
-        // 2. Kembalikan status PS
-        db.query(
-          "UPDATE ps_units SET status = 'available' WHERE id = ?",
-          [rental.ps_id],
-          (err) => { if(err) console.error(err); }
-        );
+        // B. Ubah Status PS Unit jadi 'available' (Opsional, buat kerapian database)
+        db.query("UPDATE ps_units SET status = 'available' WHERE id = ?", [rental.ps_id]);
 
-        console.log(`Rental ${rental.id} auto-finished`);
+        console.log(`[SYSTEM] Rental ID ${rental.id} otomatis selesai (Waktu Habis).`);
       });
     }
   );

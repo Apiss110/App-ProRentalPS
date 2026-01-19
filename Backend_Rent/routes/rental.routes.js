@@ -6,34 +6,21 @@ import fs from 'fs';
 
 const router = express.Router();
 
-// ==========================================
-// 1. KONFIGURASI UPLOAD (MULTER)
-// ==========================================
+// 1. KONFIGURASI UPLOAD
 const uploadDir = 'uploads';
-if (!fs.existsSync(uploadDir)){
-    fs.mkdirSync(uploadDir);
-    console.log("Folder 'uploads' berhasil dibuat otomatis!");
-}
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
 
 const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, uploadDir); 
-    },
-    filename: (req, file, cb) => {
-        // Format: proof_TIMESTAMP.jpg
-        cb(null, 'proof_' + Date.now() + path.extname(file.originalname));
-    }
+    destination: (req, file, cb) => cb(null, uploadDir),
+    filename: (req, file, cb) => cb(null, 'proof_' + Date.now() + path.extname(file.originalname))
 });
 const upload = multer({ storage: storage });
 
 
-// ==========================================
-// 2. DAFTAR ROUTES
-// ==========================================
+// --- ROUTES ---
 
-// --- ROUTE A: AMBIL SEMUA DATA (Untuk Dashboard Admin) ---
+// A. AMBIL SEMUA
 router.get('/', (req, res) => {
-    // PENTING: Gunakan LEFT JOIN agar jika User/Room dihapus, transaksi tetap muncul di list
     const sql = `
         SELECT rentals.*, 
                ps_units.name as ps_name, 
@@ -50,7 +37,7 @@ router.get('/', (req, res) => {
     });
 });
 
-// --- ROUTE B: BUAT TRANSAKSI BARU (Booking User) ---
+// B. BOOKING BARU
 router.post('/', (req, res) => {
     const { ps_id, user_id, duration, rental_type, total_price, booking_date, start_time } = req.body;
     const startDateTime = `${booking_date} ${start_time}:00`; 
@@ -61,24 +48,17 @@ router.post('/', (req, res) => {
     `;
 
     db.query(sqlRent, [ps_id, user_id, duration, rental_type, total_price, startDateTime, startDateTime, duration], (err, result) => {
-        if(err) {
-            console.error(err);
-            return res.json({Error: "Gagal insert rental"});
-        }
-        // Update Status Room jadi 'in_use'
+        if(err) return res.json({Error: "Gagal insert rental"});
         db.query("UPDATE ps_units SET status = 'in_use' WHERE id = ?", [ps_id]);
         return res.json({Status: "Success", rentalId: result.insertId});
     });
 });
 
-// --- ROUTE C: AMBIL DETAIL SATU TRANSAKSI (LENGKAP) ---
+// C. DETAIL
 router.get('/detail/:id', (req, res) => {
     const id = req.params.id;
-    // Query ini mengambil data jam, tanggal, dan harga per jam secara terpisah
     const sql = `
-        SELECT rentals.*, 
-               ps_units.name as ps_name, 
-               ps_units.price_per_hour, 
+        SELECT rentals.*, ps_units.name as ps_name, ps_units.price_per_hour, 
                users.username, users.email, users.phone,
                DATE_FORMAT(rentals.start_time, '%H:%i') as jam_mulai, 
                DATE_FORMAT(rentals.end_time, '%H:%i') as jam_selesai,
@@ -95,7 +75,7 @@ router.get('/detail/:id', (req, res) => {
     });
 });
 
-// --- ROUTE D: UPDATE STATUS PEMBAYARAN MANUAL (Dari Halaman Detail) ---
+// D. UPDATE STATUS PEMBAYARAN
 router.put('/update-status/:id', (req, res) => {
     const sql = "UPDATE rentals SET payment_status = ? WHERE id = ?";
     db.query(sql, [req.body.status, req.params.id], (err, result) => {
@@ -104,12 +84,10 @@ router.put('/update-status/:id', (req, res) => {
     });
 });
 
-// --- ROUTE E: AMBIL DATA LAPORAN (Filter Tanggal & Paid) ---
+// E. LAPORAN
 router.get('/reports', (req, res) => {
     const sql = `
-        SELECT rentals.*, 
-               ps_units.name as ps_name, 
-               users.username,
+        SELECT rentals.*, ps_units.name as ps_name, users.username,
                DATE_FORMAT(start_time, '%Y-%m-%d') as rental_date, 
                DATE_FORMAT(start_time, '%Y-%m-%d %H:%i:%s') as start_time_str 
         FROM rentals 
@@ -124,25 +102,23 @@ router.get('/reports', (req, res) => {
     });
 });
 
-// --- ROUTE F: UPLOAD BUKTI BAYAR (User) ---
+// F. UPLOAD BUKTI
 router.put('/pay/:id', upload.single('proof'), (req, res) => {
     const id = req.params.id;
     const method = req.body.payment_method;
     const filename = req.file ? req.file.filename : null; 
-
     const sql = "UPDATE rentals SET payment_method = ?, payment_proof = ?, payment_status = 'pending' WHERE id = ?";
-    db.query(sql, [method, filename, id], (err, result) => {
+    db.query(sql, [method, filename, id], (err) => {
         if(err) return res.json({Error: "Gagal upload bukti"});
         return res.json({Status: "Success"});
     });
 });
 
-// --- ROUTE G: VERIFIKASI ADMIN (Terima/Tolak) ---
+// G. VERIFIKASI ADMIN
 router.put('/verify/:id', (req, res) => {
     const id = req.params.id;
-    const action = req.body.action; // 'accept' atau 'reject'
+    const action = req.body.action; 
     let newStatus = action === 'accept' ? 'paid' : 'rejected';
-    
     const sql = "UPDATE rentals SET payment_status = ? WHERE id = ?";
     db.query(sql, [newStatus, id], (err) => {
         if(err) return res.json({Error: "Gagal verifikasi"});
@@ -150,15 +126,14 @@ router.put('/verify/:id', (req, res) => {
     });
 });
 
-// --- ROUTE H: STOP RENTAL MANUAL (Selesai Main) ---
+// H. STOP RENTAL MANUAL (UPDATE PENTING)
 router.put('/finish/:id', (req, res) => {
     const id = req.params.id;
-    const ps_id = req.body.ps_id;
-    
-    // Set rental finish
+    // Set status jadi finished & end_time jadi SEKARANG (agar slot langsung terbuka)
     db.query("UPDATE rentals SET status='finished', end_time=NOW() WHERE id=?", [id], (err) => {
-        // Set Room available lagi
-        db.query("UPDATE ps_units SET status='available' WHERE id=?", [ps_id]);
+        if(err) return res.json({Error: "Gagal"});
+        // Kita juga bisa set ps_units jadi available (opsional tapi bagus)
+        // db.query("UPDATE ps_units SET status='available' ...") 
         return res.json({Status: "Success"});
     });
 });
